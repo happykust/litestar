@@ -110,7 +110,7 @@ def test_exp_validation(exp: datetime) -> None:
             sub="123",
             exp=exp,
             iat=(datetime.now() - timedelta(seconds=30)),
-        )
+        ).encode(secret=secrets.token_hex(), algorithm="HS256")
 
 
 @given(iat=datetimes(min_value=datetime.now() + timedelta(days=1)))
@@ -124,7 +124,7 @@ def test_iat_validation(iat: datetime) -> None:
             sub="123",
             iat=iat,
             exp=(iat + timedelta(seconds=120)),
-        )
+        ).encode(secret=secrets.token_hex(), algorithm="HS256")
 
 
 def test_sub_validation() -> None:
@@ -369,40 +369,16 @@ def test_leeway_iat() -> None:
         Token.decode(encoded_token=encoded_token, secret=token_secret, algorithm="HS256")
 
 
-@pytest.mark.parametrize(
-    "reserved_claim",
-    [
-        pytest.param({"__leeway__": 9999}, id="claim"),
-        pytest.param({"extras": {"__leeway__": 9999}}, id="extras"),
-    ],
-)
-def test_leeway_with_extras(reserved_claim: dict[str, Any]) -> None:
+def test_verify_exp() -> None:
     token_secret = secrets.token_hex()
     raw_token = {
         "sub": secrets.token_hex(),
         "iat": (datetime.now(UTC) - timedelta(seconds=30)),
-        "exp": (datetime.now(UTC) + timedelta(seconds=30)),
-        **reserved_claim,
+        "exp": (datetime.now(UTC) - timedelta(seconds=30)),
     }
     encoded_token = jwt.encode(payload=raw_token, key=token_secret, algorithm="HS256")
+    token = Token.decode(encoded_token=encoded_token, secret=token_secret, algorithm="HS256", verify_exp=False)
+    assert token.sub == raw_token["sub"]
 
-    with pytest.raises(NotAuthorizedException) as exc_info:
-        Token.decode(encoded_token=encoded_token, secret=token_secret, algorithm="HS256", leeway=_LEEWAY)
-
-    assert isinstance(exc_info.value.__cause__, ImproperlyConfiguredException)
-    assert "is a reserved key" in str(exc_info.value.__cause__)
-
-
-def test_leeway_is_not_encoded_into_extras() -> None:
-    token_secret = secrets.token_hex()
-    token = Token(
-        sub=secrets.token_hex(),
-        exp=(datetime.now(UTC) + timedelta(seconds=30)),
-        extras={"__leeway__": _LEEWAY},
-    )
-    assert token.extras == {}
-
-    encoded_token = token.encode(token_secret, "HS256")
-    payload = jwt.decode(encoded_token, token_secret, algorithms=["HS256"])
-    assert "__leeway__" not in payload.get("extras", {})
-    assert Token.decode(encoded_token=encoded_token, secret=token_secret, algorithm="HS256").extras == {}
+    with pytest.raises(NotAuthorizedException):
+        Token.decode(encoded_token=encoded_token, secret=token_secret, algorithm="HS256")

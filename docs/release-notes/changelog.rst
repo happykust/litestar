@@ -6,6 +6,22 @@
 .. changelog:: 3.0.0
     :date: 2364-01-27
 
+    .. change:: Remove duplicated JWT token validation
+        :type: bugfix
+        :pr: tbd
+        :breaking:
+
+        ``Token.__post_init__`` checked ``exp`` and ``iat`` a second time, after PyJWT
+        had already checked them while decoding.
+
+        Incoming tokens are now checked by PyJWT only. The check that a new token is not
+        already expired moved to ``Token.validate_issued_claims``, which is called by
+        ``Token.encode``.
+
+        ``Token(sub=..., exp=<in the past>)`` no longer raises an error when it is
+        created - it raises from ``encode()`` instead. Token subclasses that override
+        ``__post_init__`` to issue such tokens must now override ``validate_issued_claims``.
+
     .. change:: Add support for ``leeway`` parameter in JWT security backends
         :type: feature
         :pr: 5037

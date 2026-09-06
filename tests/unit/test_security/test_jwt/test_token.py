@@ -105,12 +105,10 @@ def test_exp_validation(exp: datetime) -> None:
         # this does not work on windows. see https://bugs.python.org/issue29097
         pytest.skip("Skipping because .timestamp is weird on windows sometimes")
 
+    token = Token(sub="123", exp=exp, iat=(datetime.now() - timedelta(seconds=30)))
+
     with pytest.raises(ImproperlyConfiguredException):
-        Token(
-            sub="123",
-            exp=exp,
-            iat=(datetime.now() - timedelta(seconds=30)),
-        ).encode(secret=secrets.token_hex(), algorithm="HS256")
+        token.encode(secret=secrets.token_hex(), algorithm="HS256")
 
 
 @given(iat=datetimes(min_value=datetime.now() + timedelta(days=1)))
@@ -119,12 +117,10 @@ def test_iat_validation(iat: datetime) -> None:
         # this does not work on windows. see https://bugs.python.org/issue29097
         pytest.skip("Skipping because .timestamp is weird on windows sometimes")
 
+    token = Token(sub="123", iat=iat, exp=(iat + timedelta(seconds=120)))
+
     with pytest.raises(ImproperlyConfiguredException):
-        Token(
-            sub="123",
-            iat=iat,
-            exp=(iat + timedelta(seconds=120)),
-        ).encode(secret=secrets.token_hex(), algorithm="HS256")
+        token.encode(secret=secrets.token_hex(), algorithm="HS256")
 
 
 def test_sub_validation() -> None:
@@ -382,3 +378,20 @@ def test_verify_exp() -> None:
 
     with pytest.raises(NotAuthorizedException):
         Token.decode(encoded_token=encoded_token, secret=token_secret, algorithm="HS256")
+
+
+def test_datetime_claim_type_validation() -> None:
+    now = datetime.now()
+
+    with pytest.raises(ImproperlyConfiguredException, match="exp must be a datetime instance"):
+        Token(
+            sub="123",
+            exp=(now + timedelta(seconds=120)).timestamp(),  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(ImproperlyConfiguredException, match="iat must be a datetime instance"):
+        Token(
+            sub="123",
+            exp=(now + timedelta(seconds=120)),
+            iat=(now - timedelta(seconds=30)).timestamp(),  # type: ignore[arg-type]
+        )

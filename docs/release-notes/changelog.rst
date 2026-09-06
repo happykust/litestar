@@ -8,7 +8,7 @@
 
     .. change:: Remove duplicated JWT token validation
         :type: bugfix
-        :pr: tbd
+        :pr: 5044
         :breaking:
 
         ``Token.__post_init__`` checked ``exp`` and ``iat`` a second time, after PyJWT
